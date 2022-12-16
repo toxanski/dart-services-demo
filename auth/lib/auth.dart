@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:conduit/conduit.dart';
 
+import 'controllers/app_auth_controller.dart';
+
 class AppService extends ApplicationChannel {
   late final ManagedContext managedContext;
 
@@ -30,5 +32,6 @@ class AppService extends ApplicationChannel {
   }
 
   @override
-  Controller get entryPoint => Router();
+  Controller get entryPoint =>
+      Router()..route("token/[:refresh]").link(() => AppAuthController(managedContext));
 }
