@@ -13,6 +13,8 @@ class _User {
   @Column(unique: true, indexed: true)
   String? email;
 
+  // в body запроса получил, но в бд не пишем
+  @Serialize(input: true, output: false)
   String? password;
 
   @Column(nullable: true)
@@ -20,4 +22,11 @@ class _User {
 
   @Column(nullable: true)
   String? refreshToken;
+
+  // omitByDefault записать в бд, но при req не возвращать
+  @Column(omitByDefault: true)
+  String? salt;
+
+  @Column(omitByDefault: true)
+  String? hashPassword;
 }

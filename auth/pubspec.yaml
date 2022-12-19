@@ -7,6 +7,7 @@ environment:
 
 dependencies:
   conduit: ^4.0.1
+  jaguar_jwt: ^3.0.0
 
 dev_dependencies:
   lints: ^2.0.0
