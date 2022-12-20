@@ -19,19 +19,37 @@ class AppAuthController extends ResourceController {
               message: "Поля 'password'/'username' являются обязательными"));
     }
 
-    // connect to DB
-    // find user
-    // check password
-    // fetch user
+    try {
+      final findUserQuery = Query<User>(managedContext)
+        ..where((table) => table.username).equalTo(user.username)
+        // необходимо вернуть только id, salt и hashPassword
+        ..returningProperties(
+            (table) => [table.id, table.salt, table.hashPassword]);
 
-    final User fetchedUser = User();
+      final findUser = await findUserQuery.fetchOne();
 
-    return Response.ok(AppResponseModel(data: {
-      "id": fetchedUser.id,
-      "refreshToken": fetchedUser.refreshToken,
-      "accessToken": fetchedUser.accessToken,
-    }, message: "Успешная авторизация!")
-        .toJson());
+      if (findUser == null) {
+        throw QueryException.input('Пользователь не найден', []);
+      }
+
+      final hashPasswordFromRequest =
+          generatePasswordHash(user.password ?? "", findUser.salt ?? "");
+
+      if (hashPasswordFromRequest == findUser.hashPassword) {
+        await _updateTokens(findUser.id ?? -1, managedContext);
+
+        final fetchedUser =
+            await managedContext.fetchObjectWithID<User>(findUser.id);
+
+        return Response.ok(
+            AppResponseModel(data: fetchedUser?.backing.contents));
+      } else {
+        throw QueryException.input('Неверный пароль', []);
+      }
+    } on QueryException catch (error) {
+      return Response.serverError(
+          body: AppResponseModel(message: error.message));
+    }
   }
 
   @Operation.put()
@@ -60,27 +78,32 @@ class AppAuthController extends ResourceController {
 
         final createdUser = await createUserQuery.insert();
         userId = createdUser.asMap()["id"];
-        final Map<String, dynamic> tokens = _getTokens(userId);
 
-        final updateTokensQuery = Query<User>(transaction)
-          ..where((user) => user.id).equalTo(userId)
-          ..values.accessToken = tokens["access"]
-          ..values.refreshToken = tokens["refresh"];
-
-        await updateTokensQuery.updateOne();
+        await _updateTokens(userId, transaction);
       });
 
       final userData = await managedContext.fetchObjectWithID<User>(userId);
 
-      return Response.ok(AppResponseModel(
-        data: userData?.backing.contents,
-        message: "Успешная регистрация!"
-      ));
+      // Если не понятны некоторые момент, то прологировать
+      // Например, userData?.backing.contents
 
+      return Response.ok(AppResponseModel(
+          data: userData?.backing.contents, message: "Успешная регистрация!"));
     } on QueryException catch (error) {
       return Response.serverError(
           body: AppResponseModel(message: error.message));
     }
+  }
+
+  Future<void> _updateTokens(int userId, ManagedContext transaction) async {
+    final Map<String, dynamic> tokens = _getTokens(userId);
+
+    final updateTokensQuery = Query<User>(transaction)
+      ..where((user) => user.id).equalTo(userId)
+      ..values.accessToken = tokens["access"]
+      ..values.refreshToken = tokens["refresh"];
+
+    await updateTokensQuery.updateOne();
   }
 
   @Operation.post("refresh")
