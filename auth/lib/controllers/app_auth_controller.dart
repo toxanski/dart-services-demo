@@ -96,6 +96,7 @@ class AppAuthController extends ResourceController {
     }
   }
 
+  // Перезапись access/refresh токенов в бд
   Future<void> _updateTokens(int userId, ManagedContext transaction) async {
     final Map<String, dynamic> tokens = _getTokens(userId);
 
@@ -112,14 +113,23 @@ class AppAuthController extends ResourceController {
       @Bind.path("refresh") String refreshToken) async {
     try {
       final int id = AppUtils.getIdFromToken(refreshToken);
-
-      await _updateTokens(id, managedContext);
-
       final user = await managedContext.fetchObjectWithID<User>(id);
 
-      return Response.ok(AppResponseModel(
-          data: user?.backing.contents,
-          message: "Успешное обновление токенов доступа"));
+      print(user?.refreshToken);
+      print(refreshToken);
+
+      if (user?.refreshToken != refreshToken) {
+        return Response.unauthorized(
+            body: AppResponseModel(message: "He валидный refresh-токен"));
+      } else {
+        await _updateTokens(id, managedContext);
+
+        final user = await managedContext.fetchObjectWithID<User>(id);
+
+        return Response.ok(AppResponseModel(
+            data: user?.backing.contents,
+            message: "Успешное обновление токенов доступа"));
+      }
     } catch (error) {
       return Response.serverError(
           body: AppResponseModel(message: error.toString()));
